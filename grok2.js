@@ -3,11 +3,11 @@ const fs = require('fs').promises;
 
 (async () => {
   // Configuration
-  const url = 'https://chatgpt.com/share/682ee181-34fc-8005-b788-1ad2e2ff3945';
+  const url = 'https://chatgpt.com/share/682f3c90-aa18-800c-bf76-0da05188335e';
   const elementsToExtract = 'body'; // Extract entire body
   const classesToRemove = ['no-print', 'ad']; // Classes to remove
   const idsToRemove = ['page-header', 'thread-bottom-container', 'thread-bottom']; // IDs to remove
-  const outputPath = 'modified-page.pdf';
+  const outputPath = './outputs/modified-page.pdf';
 
   try {
     // Launch Puppeteer
@@ -53,6 +53,11 @@ const fs = require('fs').promises;
         if (el) el.remove();
       });
 
+    container.querySelectorAll('button, h1, h2, h3, h4, h5, h6')
+  .forEach(element => element.remove());
+
+
+
       return container.innerHTML;
     }, elementsToExtract, classesToRemove, idsToRemove);
 
@@ -83,6 +88,8 @@ const fs = require('fs').promises;
       return tempDiv.innerHTML;
     }, extractedContent);
 
+     console.log("Modified HTML:", modifiedHtml);
+
     // Step 4: Create HTML for PDF with styles
     const htmlContent = `
       <!DOCTYPE html>
@@ -97,19 +104,105 @@ const fs = require('fs').promises;
             background: #fff;
             line-height: 1.6;
           }
-          pre, code {
-            background: #f8f8f8;
+          
+            .whitespace-pre-wrap{
+            background:rgb(149, 255, 255);
             padding: 15px;
             border-radius: 8px;
             border: 1px solid #ddd;
             white-space: pre-wrap;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-          }
-          /* Basic syntax highlighting for code blocks */
-          .keyword { color: #d73a49; font-weight: bold; }
-          .string { color: #032f62; }
-          .comment { color: #6a737d; font-style: italic; }
+            }
+           /* Basic syntax highlighting */
+          /* Base styles for code blocks to ensure proper formatting */
+pre {
+  background: #f8f8f8; /* Light gray background for code blocks */
+  padding: 5px;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+  white-space: pre-wrap; /* Preserve whitespace and wrap lines */
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-x: auto; /* Allow horizontal scrolling for long lines */
+}
+
+code {
+  font-family: 'Courier New', monospace;
+  background: transparent; /* No extra background inside pre */
+}
+
+/* Highlight.js syntax highlighting styles */
+.hljs-meta {
+  color: #6a737d; /* Gray for meta directives (e.g., #include, @import) */
+  font-style: italic; /* Italic to distinguish from other tokens */
+}
+
+.hljs-keyword {
+  color: #d73a49; /* Red for keywords (e.g., const, function, if) */
+  font-weight: bold; /* Bold to emphasize control structures */
+}
+
+.hljs-string {
+  color: #032f62; /* Dark blue for strings (e.g., "hello") */
+}
+
+.hljs-type {
+  color: #22863a; /* Green for types (e.g., int, String) */
+  font-weight: 600; /* Slightly bold for clarity */
+}
+
+.hljs-title {
+  color: #6f42c1; /* Purple for titles (e.g., function/class names) */
+  font-weight: 600; /* Slightly bold for prominence */
+}
+
+.hljs-params {
+  color: #e36209; /* Orange for function parameters */
+}
+
+.hljs-built_in {
+  color: #005cc5; /* Bright blue for built-in functions/objects (e.g., console, require) */
+}
+
+.hljs-number {
+  color: #005cc5; /* Blue for numbers (e.g., 42, 3.14) */
+}
+
+.hljs-variable {
+  color: #24292e; /* Dark gray for variables (e.g., myVar) */
+}
+
+.hljs-operator {
+  color: #d73a49; /* Red for operators (e.g., +, -, =) */
+}
+
+.hljs-function {
+  color: #6f42c1; /* Purple for function calls, matching hljs-title */
+}
+
+/* Ensure colors are preserved in print (for Puppeteer PDFs) */
+@media print {
+  body {
+    -webkit-print-color-adjust: exact; /* Preserve background and text colors */
+  }
+  pre {
+    background: #f8f8f8 !important;
+    border: 1px solid #ddd !important;
+  }
+  .hljs-meta,
+  .hljs-keyword,
+  .hljs-string,
+  .hljs-type,
+  .hljs-title,
+  .hljs-params,
+  .hljs-built_in,
+  .hljs-number,
+  .hljs-variable,
+  .hljs-operator,
+  .hljs-function {
+    -webkit-print-color-adjust: exact;
+  }
+}
           @media print {
             body { -webkit-print-color-adjust: exact; }
             .no-print { display: none !important; }
@@ -137,7 +230,7 @@ const fs = require('fs').promises;
       path: outputPath,
       format: 'A4',
       printBackground: true,
-      margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
+      margin: { top: '50px', right: '30px', bottom: '30px', left: '40px' },
       preferCSSPageSize: true
     });
 
