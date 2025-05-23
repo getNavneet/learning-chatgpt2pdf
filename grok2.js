@@ -46,6 +46,9 @@ const fs = require('fs').promises;
     await page.waitForSelector('body', { timeout: 30000 }).catch(() => {
       console.warn('Body selector not found; proceeding with available content.');
     });
+        // Extract webpage title
+    const pageTitle = await page.evaluate(() => document.title || 'Untitled Page');
+    console.log('Webpage title:', pageTitle);
 
 
     // Debug: Log all image URLs
@@ -75,6 +78,10 @@ const fs = require('fs').promises;
 
     container.querySelectorAll('button, h1, h2, h3, h4, h5, h6')
   .forEach(element => element.remove());
+
+    container.querySelector('div p.text-xs').remove(); 
+    container.querySelector('div.text-token-text-primary').remove(); 
+
 
 
 // Deduplicate images based on src
@@ -114,26 +121,25 @@ const fs = require('fs').promises;
     }
 
     // Step 3: Modify the content
-    const modifiedHtml = await page.evaluate((content) => {
-      // Create a temporary container for modifications
+    // Step 3: Modify the content
+    const modifiedHtml = await page.evaluate((content, pageTitle) => {
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = content;
 
-      // Modifications:
-      // 1. Add a banner
-      const banner = document.createElement('div');
-      banner.style.cssText = 'background: #007bff; color: white; padding: 10px; text-align: center; font-family: Arial;';
-      banner.innerText = 'Modified by Puppeteer Bot ✨';
-      tempDiv.prepend(banner);
+      // Add webpage title as heading
+      const titleHeading = document.createElement('h1');
+      titleHeading.style.cssText = 'text-align: center; font-size: 24px; margin-bottom: 20px; color: #333;';
+      titleHeading.innerText = pageTitle;
+      tempDiv.prepend(titleHeading);
 
-      // 2. Change text of all h1 elements
-      tempDiv.querySelectorAll('h1').forEach(h1 => {
-        h1.innerText = 'Modified Title';
-      });
+      // Add a banner
+      const banner = document.createElement('div');
+      banner.style.cssText = 'background: #007bff; color: white; padding: 10px; text-align: center; font-family: Arial; margin-bottom: 20px;';
+      banner.innerText = 'Modified by Puppeteer Bot ✨';
+      tempDiv.insertBefore(banner, tempDiv.firstChild.nextSibling);
 
       return tempDiv.innerHTML;
-    }, extractedContent);
-
+    }, extractedContent, pageTitle);
      console.log("Modified HTML:", modifiedHtml);
 
     // Step 4: Create HTML for PDF with styles
@@ -154,6 +160,7 @@ const fs = require('fs').promises;
             .whitespace-pre-wrap{
             background:rgb(149, 255, 255);
             padding: 15px;
+            margin: 10px 0;
             border-radius: 8px;
             border: 1px solid #ddd;
             white-space: pre-wrap;
