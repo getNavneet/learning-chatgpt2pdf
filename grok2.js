@@ -3,15 +3,15 @@ const fs = require('fs').promises;
 
 (async () => {
   // Configuration
-  const url = 'https://chatgpt.com/share/682f3c90-aa18-800c-bf76-0da05188335e';
-  const elementsToExtract = 'body'; // Extract entire body
-  const classesToRemove = ['no-print', 'ad']; // Classes to remove
+  const url = 'https://chatgpt.com/share/682f176d-dd20-8005-a84f-3a9982154964';
+  const elementsToExtract = 'main'; // Extract entire body
+  const classesToRemove = ['no-print', 'ad', 'sr-only']; // Classes to remove
   const idsToRemove = ['page-header', 'thread-bottom-container', 'thread-bottom']; // IDs to remove
   const outputPath = './outputs/modified-page.pdf';
 
   try {
     // Launch Puppeteer
-    const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const browser = await puppeteer.launch({ headless: 'false', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
 
     // Set user agent to avoid bot detection
@@ -26,14 +26,34 @@ const fs = require('fs').promises;
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
     }
 
+     // Wait for images to load
+    console.log('Waiting for images to load...');
+    await page.evaluate(async () => {
+      const images = Array.from(document.querySelectorAll('img'));
+      await Promise.all(
+        images.map(img => {
+          if (img.complete) return Promise.resolve();
+          return new Promise(resolve => {
+            img.addEventListener('load', resolve);
+            img.addEventListener('error', resolve);
+          });
+        })
+      );
+    }).catch(err => console.warn('Image wait failed:', err.message));
+
     // Wait for dynamic content (e.g., ChatGPT conversation)
     console.log('Waiting for content to load...');
     await page.waitForSelector('body', { timeout: 30000 }).catch(() => {
       console.warn('Body selector not found; proceeding with available content.');
     });
 
+
+    // Debug: Log all image URLs
+    const imageUrls = await page.evaluate(() => Array.from(document.querySelectorAll('img')).map(img => img.src));
+    console.log('Image URLs found:', imageUrls);
+
     // Step 2: Copy elements and remove unwanted elements
-    const extractedContent = await page.evaluate((selector, classesToRemove, idsToRemove) => {
+    const extractedContent = await page.evaluate((selector, classesToRemove, idsToRemove, baseUrl) => {
       // Extract the desired element(s)
       const elements = document.querySelectorAll(selector);
       if (!elements.length) return '<p>Error: No elements found for selector</p>';
@@ -57,9 +77,35 @@ const fs = require('fs').promises;
   .forEach(element => element.remove());
 
 
+// Deduplicate images based on src
+      const seenSrcs = new Set();
+      container.querySelectorAll('img').forEach(img => {
+        if (!img.src) return;
+        if (seenSrcs.has(img.src)) {
+          img.remove(); // Remove duplicate image
+        } else {
+          seenSrcs.add(img.src);
+        }
+      });
+
+      // Convert relative image URLs to absolute
+      container.querySelectorAll('img').forEach(img => {
+        if (img.src && !img.src.startsWith('http')) {
+          img.src = new URL(img.src, baseUrl).href;
+        }
+      });
+      // Preserve background images
+      container.querySelectorAll('[style*="background-image"]').forEach(el => {
+        const style = el.getAttribute('style');
+        const match = style.match(/url\(['"]?(.+?)['"]?\)/);
+        if (match && match[1] && !match[1].startsWith('http')) {
+          const absoluteUrl = new URL(match[1], baseUrl).href;
+          el.style.backgroundImage = `url('${absoluteUrl}')`;
+        }
+      });
 
       return container.innerHTML;
-    }, elementsToExtract, classesToRemove, idsToRemove);
+    }, elementsToExtract, classesToRemove, idsToRemove, url);
 
     // Log extracted content for debugging
     console.log('Extracted content length:', extractedContent.length);
@@ -128,7 +174,7 @@ pre {
 
 code {
   font-family: 'Courier New', monospace;
-  background: transparent; /* No extra background inside pre */
+  background: #f8f8f8; /* No extra background inside pre */
 }
 
 /* Highlight.js syntax highlighting styles */
