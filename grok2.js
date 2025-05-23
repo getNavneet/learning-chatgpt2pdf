@@ -3,9 +3,9 @@ const fs = require('fs').promises;
 
 (async () => {
   // Configuration
-  const url = 'https://chatgpt.com/share/682f176d-dd20-8005-a84f-3a9982154964';
+  const url = 'https://chatgpt.com/share/682f3c90-aa18-800c-bf76-0da05188335e';
   const elementsToExtract = 'main'; // Extract entire body
-  const classesToRemove = ['no-print', 'ad', 'sr-only']; // Classes to remove
+  const classesToRemove = ['no-print', 'ad', 'sr-only','bg-token-main-surface-tertiary']; // Classes to remove
   const idsToRemove = ['page-header', 'thread-bottom-container', 'thread-bottom']; // IDs to remove
   const outputPath = './outputs/modified-page.pdf';
 
@@ -27,19 +27,38 @@ const fs = require('fs').promises;
     }
 
      // Wait for images to load
-    console.log('Waiting for images to load...');
-    await page.evaluate(async () => {
-      const images = Array.from(document.querySelectorAll('img'));
-      await Promise.all(
-        images.map(img => {
-          if (img.complete) return Promise.resolve();
-          return new Promise(resolve => {
-            img.addEventListener('load', resolve);
-            img.addEventListener('error', resolve);
-          });
-        })
-      );
-    }).catch(err => console.warn('Image wait failed:', err.message));
+    // Wait for generated images if they exist
+    console.log('Checking for generated images...');
+    const imageUrls = await page.evaluate(async () => {
+      const generatedImageContainers = document.querySelectorAll('.group\\/imagegen-image');
+      const imageUrls = [];
+      if (generatedImageContainers.length > 0) {
+        console.log(`Found ${generatedImageContainers.length} generated image containers.`);
+        const images = Array.from(document.querySelectorAll('.group\\/imagegen-image img'));
+        await Promise.all(
+          images.map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => {
+              img.addEventListener('load', resolve);
+              img.addEventListener('error', resolve);
+            });
+          })
+        );
+        images.forEach(img => {
+          if (img.src) imageUrls.push(img.src);
+        });
+      } else {
+        console.log('No generated images found.');
+      }
+    //   Also collect other images
+    //   document.querySelectorAll('img:not(.group\\/imagegen-image img)').forEach(img => {
+    //     if (img.src) imageUrls.push(img.src);
+    //   });
+      return imageUrls;
+    }).catch(err => {
+      console.warn('Image wait failed:', err.message);
+      return [];
+    });
 
     // Wait for dynamic content (e.g., ChatGPT conversation)
     console.log('Waiting for content to load...');
@@ -52,8 +71,8 @@ const fs = require('fs').promises;
 
 
     // Debug: Log all image URLs
-    const imageUrls = await page.evaluate(() => Array.from(document.querySelectorAll('img')).map(img => img.src));
-    console.log('Image URLs found:', imageUrls);
+    // const imageUrls = await page.evaluate(() => Array.from(document.querySelectorAll('img')).map(img => img.src));
+    // console.log('Image URLs found:', imageUrls);
 
     // Step 2: Copy elements and remove unwanted elements
     const extractedContent = await page.evaluate((selector, classesToRemove, idsToRemove, baseUrl) => {
@@ -80,7 +99,9 @@ const fs = require('fs').promises;
   .forEach(element => element.remove());
 
     container.querySelector('div p.text-xs').remove(); 
+    // container.querySelector('div p.text-xm').remove(); //to remove cookie info
     container.querySelector('div.text-token-text-primary').remove(); 
+    // container.querySelector('p span.text-token-text-secondary').remove(); 
 
 
 
@@ -121,7 +142,7 @@ const fs = require('fs').promises;
     }
 
     // Step 3: Modify the content
-    // Step 3: Modify the content
+
     const modifiedHtml = await page.evaluate((content, pageTitle) => {
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = content;
@@ -182,6 +203,81 @@ pre {
 code {
   font-family: 'Courier New', monospace;
   background: #f8f8f8; /* No extra background inside pre */
+}
+  /* Table styles for beautiful rendering */
+table {
+  width: 100%;
+  max-width: 800px; /* Respect w-fit and min-w-(--thread-content-width) */
+  margin: 20px auto;
+  border-collapse: collapse;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: 'Arial', sans-serif;
+}
+
+thead {
+  background: #007bff; /* Match banner color for consistency */
+  color: white;
+}
+
+th, td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+th {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+td {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+tbody tr:nth-child(even) {
+  background: #f8f8f8; /* Match pre background for consistency */
+}
+
+tbody tr:hover {
+  background: #e0f7fa; /* Match .whitespace-pre-wrap cyan for hover */
+}
+
+th[data-col-size="sm"], td[data-col-size="sm"] {
+  width: 20%; /* Smaller column for "Feature" */
+}
+
+th[data-col-size="md"], td[data-col-size="md"] {
+  width: 40%; /* Medium columns for "Graph" and "Tree" */
+}
+
+strong {
+  font-weight: 700;
+  color: #032f62; /* Match .hljs-string for emphasis */
+}
+
+/* Ensure print compatibility */
+@media print {
+  table, thead, tbody, th, td, tr {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  table {
+    box-shadow: none; /* Remove shadow for print */
+  }
+  thead {
+    background: #007bff !important;
+    color: white !important;
+  }
+  tbody tr:nth-child(even) {
+    background: #f8f8f8 !important;
+  }
+  tbody tr:hover {
+    background: #e0f7fa !important;
+  }
 }
 
 /* Highlight.js syntax highlighting styles */
@@ -283,7 +379,7 @@ code {
       path: outputPath,
       format: 'A4',
       printBackground: true,
-      margin: { top: '50px', right: '30px', bottom: '30px', left: '40px' },
+      margin: { top: '50px', right: '30px', bottom: '50px', left: '40px' },
       preferCSSPageSize: true
     });
 
